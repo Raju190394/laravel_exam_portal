@@ -78,9 +78,13 @@
             @endforeach
         </div>
 
-        <div class="mt-12 text-center">
-            <a href="{{ route('student.exams.index') }}" class="btn bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-3 rounded-2xl shadow-lg transition-all transform hover:scale-105">
+        <div class="mt-12 text-center flex items-center justify-center space-x-4">
+            <a href="{{ route('student.exams.index') }}" class="btn bg-gray-200 hover:bg-gray-300 text-gray-800 px-8 py-3 rounded-2xl shadow-lg transition-all transform hover:scale-105">
                 Back to Dashboard
+            </a>
+            <a href="{{ route('student.results.pdf', $studentExam) }}" class="btn bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-3 rounded-2xl shadow-lg transition-all transform hover:scale-105 flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Download PDF
             </a>
         </div>
 

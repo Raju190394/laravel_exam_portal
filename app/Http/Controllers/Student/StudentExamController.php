@@ -32,6 +32,26 @@ class StudentExamController extends Controller
         return view('pages.student.exams.index', compact('exams', 'attempts'));
     }
 
+    public function logViolation(Request $request, StudentExam $studentExam)
+    {
+        if ($studentExam->status !== 'ongoing') return response()->json(['success' => false]);
+
+        $studentExam->increment('tab_switch_count');
+        $logs = $studentExam->violation_logs ? json_decode($studentExam->violation_logs, true) : [];
+        $logs[] = [
+            'type' => $request->type ?? 'tab_switch',
+            'time' => now()->toDateTimeString(),
+            'message' => $request->message ?? 'Student switched tab/window'
+        ];
+        $studentExam->violation_logs = json_encode($logs);
+        $studentExam->save();
+
+        return response()->json([
+            'success' => true,
+            'count' => $studentExam->tab_switch_count
+        ]);
+    }
+
     public function show(Exam $exam)
     {
         $user = Auth::user();

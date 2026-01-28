@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Student;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\StudentExam;
+use App\Models\Question;
 use App\Services\ExamService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -82,14 +83,18 @@ class StudentExamController extends Controller
             return redirect()->route('student.results.show', $studentExam)->with('error', 'Exam timed out.');
         }
 
-        $questions = $exam->questions();
+        // Fetch questions safely
+        $query = Question::where('exam_id', $exam->id)->with('options');
+        
         if ($exam->randomize_questions) {
-            $questions->inRandomOrder();
+            $query->inRandomOrder();
         }
-        $questions = $questions->with('options')->get();
+        
+        $questions = $query->get();
 
         if ($exam->randomize_options) {
             foreach ($questions as $q) {
+                // Shuffle options for each question
                 $q->setRelation('options', $q->options->shuffle());
             }
         }

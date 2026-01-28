@@ -1,181 +1,427 @@
-<x-app-layout>
-    <div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto" x-data="examHandler()">
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <!-- Header with Timer -->
-        <div class="fixed top-20 right-8 z-50">
-            <div class="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-4 border-2 border-indigo-500">
-                <div class="text-xs text-gray-500 uppercase font-bold text-center mb-1">Time Remaining</div>
-                <div class="text-2xl font-mono font-bold text-indigo-600 dark:text-indigo-400 text-center" id="timer">
-                    00:00:00
-                </div>
+    <title>{{ $exam->title }} - Exam Portal</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+
+    <!-- Scripts -->
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <style>
+        [x-cloak] { display: none !important; }
+        
+        /* Custom Scrollbar for the palette and question area */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #c1c1c1; 
+            border-radius: 3px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8; 
+        }
+
+        /* Exam specific styles */
+        body { overflow: hidden; } /* Prevent main body scroll */
+        
+        .exam-header { 
+            height: 60px;
+            background: #1e293b; /* Slate 800 */
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 50;
+        }
+
+        .exam-container {
+            display: flex;
+            height: calc(100vh - 60px); /* Full height minus header */
+            background: #f3f4f6; /* Gray 100 */
+        }
+
+        .question-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .palette-section {
+            width: 320px;
+            background: white;
+            border-left: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 40;
+        }
+
+        /* Option Styling */
+        .option-card {
+            display: flex;
+            border: 1px solid #e5e7eb;
+            background: white;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .option-card:hover {
+            background-color: #f9fafb;
+            border-color: #d1d5db;
+        }
+        .option-key {
+            background: #e5e7eb;
+            width: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #374151;
+            flex-shrink: 0;
+        }
+        .option-card input:checked ~ .option-key {
+            background: #3b82f6; /* Blue 500 */
+            color: white;
+        }
+        .option-card input:checked ~ .option-content {
+            background: #eff6ff; /* Blue 50 */
+            border-color: #3b82f6;
+        }
+        .option-content {
+            padding: 15px;
+            flex: 1;
+            font-size: 1rem;
+            color: #1f2937;
+        }
+
+        /* Palette Grid Buttons */
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr); /* 5 cols is standard */
+            gap: 8px;
+            padding: 15px;
+            overflow-y: auto;
+            align-content: start; /* Prevent stretching */
+        }
+        .p-btn {
+            width: 100%;
+            aspect-ratio: 1 / 1; /* Force square */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: 1px solid #e5e7eb;
+            background: #f9fafb;
+            color: #4b5563;
+            cursor: pointer; /* Ensure pointer cursor */
+        }
+        .p-btn:hover { background: #e5e7eb; }
+        
+        .p-btn.current { background: #ef4444; color: white; border-color: #ef4444; } /* Red */
+        .p-btn.answered { background: #22c55e; color: white; border-color: #22c55e; } /* Green */
+        .p-btn.marked { background: #a855f7; color: white; border-color: #a855f7; } /* Purple */
+        .p-btn.visited { background: #9ca3af; color: white; border-color: #9ca3af; } /* Gray */
+
+        /* Legend Dots */
+        .legend-dot { width: 12px; height: 12px; display: inline-block; border-radius: 2px; margin-right: 6px; }
+        .l-success { background: #22c55e; }
+        .l-danger { background: #ef4444; }
+        .l-purple { background: #a855f7; }
+        .l-gray { background: #9ca3af; }
+        .l-default { background: #f3f4f6; border: 1px solid #d1d5db; }
+    </style>
+</head>
+<body class="font-sans antialiased" x-data="examHandler()">
+
+    <!-- Fixed Header -->
+    <header class="exam-header">
+        <div class="flex items-center gap-4">
+            <div class="bg-blue-600 w-10 h-10 rounded flex items-center justify-center font-bold text-xl shadow-lg">
+                {{ substr($exam->title, 0, 1) }}
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight">{{ $exam->title }}</h1>
+                <div class="text-xs text-gray-300">{{ $exam->course->title ?? 'Course Exam' }}</div>
             </div>
         </div>
 
-        <div class="mb-8">
-            <h1 class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold uppercase tracking-tight">{{ $exam->title }}</h1>
-            <div class="flex items-center mt-2 text-sm text-gray-500">
-                <span class="mr-4">Questions: {{ $questions->count() }}</span>
-                <span>Total Marks: {{ $exam->total_marks }}</span>
-            </div>
+        <div class="flex flex-col items-center">
+            <div class="text-xs uppercase tracking-widest text-gray-400 mb-0.5">Time Remaining</div>
+            <div class="font-mono text-2xl font-bold tracking-wider text-green-400" id="timer">00:00:00</div>
         </div>
 
-        <div class="grid grid-cols-12 gap-6">
-            <!-- Questions Section -->
-            <div class="col-span-12 lg:col-span-9">
-                @foreach($questions as $index => $question)
-                <div class="question-card bg-white dark:bg-gray-800 shadow-lg rounded-2xl p-8 mb-6 transition-all duration-300" 
-                     x-show="currentQuestion === {{ $index }}"
-                     x-transition:enter="transition ease-out duration-300"
-                     x-transition:enter-start="opacity-0 transform translate-x-12"
-                     x-transition:enter-end="opacity-100 transform translate-x-0">
-                    
-                    <div class="flex items-center justify-between mb-6">
-                        <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full">Question {{ $index + 1 }} of {{ $questions->count() }}</span>
-                        <span class="text-sm font-medium text-gray-400">{{ $question->marks }} Marks</span>
-                    </div>
+        <button @click="confirmSubmit()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow transition font-medium text-sm">
+            Finish Exam
+        </button>
+    </header>
 
-                    <h2 class="text-xl font-semibold mb-6 text-gray-800 dark:text-gray-100 leading-relaxed">{{ $question->question_text }}</h2>
-
-                    @if($question->question_image)
-                    <div class="mb-8 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
-                        <img src="{{ Storage::url($question->question_image) }}" alt="Question Image" class="max-w-full rounded-lg shadow-sm" />
-                    </div>
-                    @endif
-
-                    <div class="space-y-4">
-                        @foreach($question->options as $option)
-                        <label class="block cursor-pointer group">
-                            <input type="radio" 
-                                   name="q{{ $question->id }}" 
-                                   value="{{ $option->id }}" 
-                                   class="sr-only" 
-                                   @change="submitAnswer({{ $question->id }}, {{ $option->id }})"
-                                   :checked="answers[{{ $question->id }}] == {{ $option->id }}">
-                            <div class="p-5 border-2 rounded-2xl flex items-center transition-all duration-200 group-hover:bg-gray-50 dark:group-hover:bg-gray-700/30"
-                                 :class="answers[{{ $question->id }}] == {{ $option->id }} ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' : 'border-gray-100 dark:border-gray-700'">
-                                <span class="w-10 h-10 flex items-center justify-center rounded-xl mr-4 transition-colors"
-                                      :class="answers[{{ $question->id }}] == {{ $option->id }} ? 'bg-indigo-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500'">
-                                    {{ chr(65 + $loop->index) }}
-                                </span>
-                                <div class="flex-1">
-                                    <span class="text-md font-medium text-gray-700 dark:text-gray-300 uppercase">{{ $option->option_text }}</span>
-                                    @if($option->option_image)
-                                    <img src="{{ Storage::url($option->option_image) }}" alt="Option Image" class="mt-3 max-w-xs rounded-lg shadow-xs" />
-                                    @endif
-                                </div>
+    <!-- Main Exam Container -->
+    <div class="exam-container">
+        
+        <!-- Left: Question Area -->
+        <div class="question-section custom-scroll relative flex flex-col h-full p-0">
+            <!-- Scrollable Content -->
+            <div class="flex-1 overflow-y-auto p-8 custom-scroll">
+                @if($questions->count() > 0)
+                    @foreach($questions as $index => $question)
+                    <div x-show="currentQuestion === {{ $index }}" class="max-w-4xl mx-auto w-full bg-white rounded-lg shadow-sm border border-gray-200 p-8 min-h-[400px]">
+                        
+                        <!-- Question Header -->
+                        <div class="flex justify-between items-start mb-6 border-b border-gray-100 pb-4">
+                            <div>
+                                <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-0.5 rounded">Question {{ $index + 1 }}</span>
                             </div>
-                        </label>
-                        @endforeach
-                    </div>
-                </div>
-                @endforeach
+                            <div class="text-sm font-semibold text-gray-500">
+                                Max Marks: {{ $question->marks }}
+                                @if($question->negative_marks > 0)
+                                    <span class="text-red-400 text-xs ml-1">(-{{ $question->negative_marks }} neg.)</span>
+                                @endif
+                            </div>
+                        </div>
 
-                <!-- Navigation -->
-                <div class="flex justify-between items-center py-4">
-                    <button class="btn border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-                            @click="prevQuestion()" :disabled="currentQuestion === 0">
+                        <!-- Question Text -->
+                        <div class="prose max-w-none mb-8">
+                            <h3 class="text-xl font-medium text-gray-800 leading-relaxed">{{ $question->question_text }}</h3>
+                            
+                            @if($question->question_image)
+                            <div class="mt-4 p-2 border rounded bg-gray-50 inline-block">
+                                <img src="{{ asset('storage/'.$question->question_image) }}" alt="Question Image" class="max-h-96 rounded" />
+                            </div>
+                            @endif
+                        </div>
+
+                        <!-- Options -->
+                        <div class="flex-1">
+                            <h4 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4">Select Answer</h4>
+                            <div class="space-y-0">
+                                @foreach($question->options as $optIndex => $option)
+                                <label class="option-card group">
+                                    <input type="radio" 
+                                           name="q{{ $question->id }}" 
+                                           value="{{ $option->id }}" 
+                                           class="sr-only" 
+                                           @change="submitAnswer({{ $question->id }}, {{ $option->id }})"
+                                           :checked="answers[{{ $question->id }}] == {{ $option->id }}">
+                                    <div class="option-key group-hover:bg-gray-300 transition-colors">
+                                        {{ chr(65 + $optIndex) }}
+                                    </div>
+                                    <div class="option-content">
+                                        <div class="font-medium">{{ $option->option_text }}</div>
+                                        @if($option->option_image)
+                                        <img src="{{ asset('storage/'.$option->option_image) }}" alt="Option" class="mt-2 h-16 border rounded bg-white p-1" />
+                                        @endif
+                                    </div>
+                                </label>
+                                @endforeach
+                            </div>
+                        </div>
+
+                    </div>
+                    @endforeach
+                @else
+                    <div class="flex-1 flex flex-col items-center justify-center text-center h-full">
+                        <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200 max-w-md">
+                            <h3 class="text-lg font-medium text-gray-900">No Questions Found</h3>
+                            <p class="text-gray-500 mt-2">This exam currently has no questions assigned to it.</p>
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            <!-- Fixed Footer Action Bar -->
+            <div class="bg-white border-t border-gray-200 p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-10 flex justify-between items-center">
+                <button type="button" @click="toggleMark()" 
+                        class="px-4 py-2 rounded border transition text-sm font-medium flex items-center gap-2"
+                        :class="isMarked(currentQuestion) ? 'bg-purple-100 border-purple-300 text-purple-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                    <span x-text="isMarked(currentQuestion) ? 'Unmark Review' : 'Mark for Review'"></span>
+                </button>
+
+                <div class="flex gap-3">
+                    <button type="button" @click="prevQuestion()" 
+                            class="px-5 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+                            :disabled="currentQuestion === 0">
                         Previous
                     </button>
                     
-                    <div class="space-x-2">
-                        <button class="btn bg-red-500 hover:bg-red-600 text-white" @click="confirmSubmit()">
-                            Submit Exam
-                        </button>
-                        <button class="btn bg-indigo-500 hover:bg-indigo-600 text-white"
-                                @click="nextQuestion()" x-show="currentQuestion < {{ $questions->count() - 1 }}">
-                            Next Question
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Question Palette -->
-            <div class="col-span-12 lg:col-span-3">
-                <div class="bg-white dark:bg-gray-800 shadow-lg rounded-2xl p-6 sticky top-24">
-                    <h3 class="font-bold mb-4 text-gray-800 dark:text-gray-100">Question Palette</h3>
-                    <div class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-4 gap-2">
-                        @foreach($questions as $index => $question)
-                        <button @click="currentQuestion = {{ $index }}"
-                                class="w-full aspect-square flex items-center justify-center rounded-lg text-xs font-bold transition-all duration-200"
-                                :class="currentQuestion === {{ $index }} ? 'ring-2 ring-indigo-500 ring-offset-2' : (answers[{{ $question->id }}] ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600')">
-                            {{ $index + 1 }}
-                        </button>
-                        @endforeach
-                    </div>
+                    <button type="button" @click="nextQuestion()" 
+                            class="px-5 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+                            x-show="currentQuestion < questionsCount - 1">
+                        <span>Next & Save</span>
+                    </button>
                     
-                    <div class="mt-6 space-y-3">
-                        <div class="flex items-center text-xs">
-                            <span class="w-3 h-3 bg-green-500 rounded mr-2"></span>
-                            <span class="text-gray-500">Attempted</span>
-                        </div>
-                        <div class="flex items-center text-xs">
-                            <span class="w-3 h-3 bg-gray-100 dark:bg-gray-700 rounded mr-2"></span>
-                            <span class="text-gray-500">Unattempted</span>
-                        </div>
-                    </div>
+                    <button type="button" @click="confirmSubmit()" 
+                            class="px-5 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+                            x-show="currentQuestion === questionsCount - 1" style="display: none;" x-effect="$el.style.display = (currentQuestion === questionsCount - 1) ? 'flex' : 'none'">
+                        <span>Submit Exam</span>
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Hidden Submission Form -->
-        <form id="submit-exam-form" action="{{ route('student.exams.complete', $studentExam) }}" method="POST" style="display: none;">
-            @csrf
-        </form>
+        <!-- Right: Palette Section -->
+        <div class="palette-section shadow-lg">
+            <!-- User Info (Small) -->
+            <div class="p-4 border-b border-gray-200 bg-gray-50 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 font-bold overflow-hidden">
+                    @if(Auth::user()->photo)
+                        <img src="{{ asset('storage/'.Auth::user()->photo) }}" class="w-full h-full object-cover">
+                    @else
+                        {{ substr(Auth::user()->name, 0, 1) }}
+                    @endif
+                </div>
+                <div class="overflow-hidden">
+                    <div class="font-bold text-sm text-gray-800 truncate">{{ Auth::user()->name }}</div>
+                    <div class="text-xs text-gray-500 truncate">Candidate ID: {{ Auth::id() }}</div>
+                </div>
+            </div>
+
+            <!-- Palette Grid -->
+            <div class="flex-1 flex flex-col min-h-0">
+                <div class="p-3 border-b border-gray-100 bg-white">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Question Palette</h3>
+                </div>
+                
+                <div class="palette-grid custom-scroll flex-1">
+                    @foreach($questions as $index => $question)
+                    <button @click="jumpToQuestion({{ $index }})"
+                            class="p-btn transition-colors duration-150"
+                            :class="getPaletteClass({{ $index }}, {{ $question->id }})">
+                        {{ $index + 1 }}
+                    </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Compact Legend -->
+            <div class="p-4 bg-gray-50 border-t border-gray-200 text-xs">
+                <div class="grid grid-cols-2 gap-y-2 gap-x-1">
+                    <div class="flex items-center"><span class="legend-dot l-success"></span> Answered (<span x-text="answeredCount"></span>)</div>
+                    <div class="flex items-center"><span class="legend-dot l-danger"></span> Not Answered (<span x-text="notAnsweredCount"></span>)</div>
+                    <div class="flex items-center"><span class="legend-dot l-purple"></span> Marked (<span x-text="markedCount"></span>)</div>
+                    <div class="flex items-center"><span class="legend-dot l-gray"></span> Not Visited (<span x-text="notVisitedCount"></span>)</div>
+                </div>
+            </div>
+            
+            <div class="p-3 border-t border-gray-200 text-center bg-white">
+                <a href="#" class="text-xs text-blue-500 hover:underline">Instructions</a>
+            </div>
+        </div>
+
     </div>
 
-    @push('scripts')
+    <!-- Hidden Submission Form -->
+    <form id="submit-exam-form" action="{{ route('student.exams.complete', $studentExam) }}" method="POST" style="display: none;">
+        @csrf
+    </form>
+
     <script>
-        function examHandler() {
-            return {
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('examHandler', () => ({
                 currentQuestion: 0,
+                questionsCount: {{ $questions->count() }},
                 answers: {},
-                examDurationSec: {{ $exam->duration_minutes * 60 }},
-                timeSpent: 0,
+                visited: new Set([0]),
+                marked: new Set(),
+                // Calculate remaining seconds directly in PHP to avoid timezone issues/computer clock skew
+                remainingSeconds: {{ max(0, $studentExam->started_at->addMinutes($exam->duration_minutes)->timestamp - now()->timestamp) }},
+                qIdToIndex: {
+                    @foreach($questions as $index => $q)
+                    {{ $q->id }}: {{ $index }},
+                    @endforeach
+                },
                 
                 init() {
-                    // Initialize answers from existing ones if needed
+                    // Load answers
                     @foreach($studentExam->answers as $ans)
                         this.answers[{{ $ans->question_id }}] = {{ $ans->option_id }};
+                        // Mark answered as visited
+                        if (this.qIdToIndex[{{ $ans->question_id }}] !== undefined) {
+                            this.visited.add(this.qIdToIndex[{{ $ans->question_id }}]);
+                        }
                     @endforeach
                     
-                    // Calc initial time spent
-                    const startedAt = new Date("{{ $studentExam->started_at }}").getTime();
-                    const now = new Date().getTime();
-                    this.timeSpent = Math.floor((now - startedAt) / 1000);
-
                     this.startTimer();
                 },
 
                 startTimer() {
+                    // Update the display immediately
+                    this.updateTimerDisplay();
+
                     const timerId = setInterval(() => {
-                        this.timeSpent++;
-                        const remaining = this.examDurationSec - this.timeSpent;
+                        this.remainingSeconds--;
                         
-                        if (remaining <= 0) {
+                        if (this.remainingSeconds <= 0) {
                             clearInterval(timerId);
                             document.getElementById('timer').innerText = "00:00:00";
-                            alert("Time is up! Your exam will be submitted automatically.");
+                            // Only alert if we actually hit zero while the user was on the page (prevent instant loop on reload if already done)
+                            // But for safety, just submit
+                            console.log('Timer finished'); 
                             this.autoSubmit();
                             return;
                         }
 
-                        const h = Math.floor(remaining / 3600).toString().padStart(2, '0');
-                        const m = Math.floor((remaining % 3600) / 60).toString().padStart(2, '0');
-                        const s = (remaining % 60).toString().padStart(2, '0');
-                        document.getElementById('timer').innerText = `${h}:${m}:${s}`;
+                        this.updateTimerDisplay();
                     }, 1000);
                 },
 
+                updateTimerDisplay() {
+                    const remaining = Math.max(0, this.remainingSeconds);
+                    const h = Math.floor(remaining / 3600).toString().padStart(2, '0');
+                    const m = Math.floor((remaining % 3600) / 60).toString().padStart(2, '0');
+                    const s = (remaining % 60).toString().padStart(2, '0');
+                    
+                    const timerEl = document.getElementById('timer');
+                    timerEl.innerText = `${h}:${m}:${s}`;
+                    
+                    // Warning color
+                    if (remaining < 300) { // 5 mins
+                        timerEl.classList.remove('text-green-400');
+                        timerEl.classList.add('text-red-500', 'animate-pulse');
+                    }
+                },
+
                 nextQuestion() {
-                    if (this.currentQuestion < {{ $questions->count() - 1 }}) this.currentQuestion++;
+                    if (this.currentQuestion < this.questionsCount - 1) {
+                        this.currentQuestion++;
+                        this.visited.add(this.currentQuestion);
+                    }
                 },
 
                 prevQuestion() {
-                    if (this.currentQuestion > 0) this.currentQuestion--;
+                    if (this.currentQuestion > 0) {
+                        this.currentQuestion--;
+                        this.visited.add(this.currentQuestion);
+                    }
+                },
+                
+                jumpToQuestion(index) {
+                    this.currentQuestion = index;
+                    this.visited.add(index);
                 },
 
                 submitAnswer(qId, oId) {
                     this.answers[qId] = oId;
+                    this.visited.add(this.currentQuestion);
                     
                     fetch("{{ route('student.exams.submit_answer', $studentExam) }}", {
                         method: 'POST',
@@ -190,17 +436,53 @@
                     });
                 },
 
+                toggleMark() {
+                    if (this.marked.has(this.currentQuestion)) {
+                        this.marked.delete(this.currentQuestion);
+                    } else {
+                        this.marked.add(this.currentQuestion);
+                    }
+                },
+                
+                isMarked(index) {
+                    return this.marked.has(index);
+                },
+
+                getPaletteClass(index, qId) {
+                    // Priority: Current > Marked > Answered > Visited > Default
+                    const isCurrent = this.currentQuestion === index;
+                    const isMarked = this.marked.has(index);
+                    const isAnswered = this.answers[qId] !== undefined;
+                    const isVisited = this.visited.has(index);
+
+                    if (isCurrent) return 'current';
+                    if (isMarked) return 'marked';
+                    if (isAnswered) return 'answered';
+                    if (isVisited) return 'visited'; // Visited but not answered (Gray)
+                    
+                    return ''; // Default (White/Light Gray)
+                },
+                
+                get answeredCount() { return Object.keys(this.answers).length; },
+                get markedCount() { return this.marked.size; },
+                get notVisitedCount() { return this.questionsCount - this.visited.size; },
+                get notAnsweredCount() { return Math.max(0, this.visited.size - this.answeredCount); },
+
                 confirmSubmit() {
-                    if (confirm("Are you sure you want to submit the exam?")) {
+                    if (confirm("Are you sure you want to finish the exam? This cannot be undone.")) {
                         document.getElementById('submit-exam-form').submit();
                     }
                 },
 
                 autoSubmit() {
-                    document.getElementById('submit-exam-form').submit();
+                    // Optional: Check if already submitted text is visible to avoid double-submit
+                    if (document.getElementById('submit-exam-form')) {
+                        alert("Time is up! Submitting exam...");
+                        document.getElementById('submit-exam-form').submit();
+                    }
                 }
-            }
-        }
+            }));
+        });
     </script>
-    @endpush
-</x-app-layout>
+</body>
+</html>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Student;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\StudentExam;
+use App\Models\Question;
 use App\Services\ExamService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,6 +31,26 @@ class StudentExamController extends Controller
             
         $attempts = StudentExam::where('user_id', $user->id)->latest()->get();
         return view('pages.student.exams.index', compact('exams', 'attempts'));
+    }
+
+    public function logViolation(Request $request, StudentExam $studentExam)
+    {
+        if ($studentExam->status !== 'ongoing') return response()->json(['success' => false]);
+
+        $studentExam->increment('tab_switch_count');
+        $logs = $studentExam->violation_logs ? json_decode($studentExam->violation_logs, true) : [];
+        $logs[] = [
+            'type' => $request->type ?? 'tab_switch',
+            'time' => now()->toDateTimeString(),
+            'message' => $request->message ?? 'Student switched tab/window'
+        ];
+        $studentExam->violation_logs = json_encode($logs);
+        $studentExam->save();
+
+        return response()->json([
+            'success' => true,
+            'count' => $studentExam->tab_switch_count
+        ]);
     }
 
     public function show(Exam $exam)
@@ -62,14 +83,18 @@ class StudentExamController extends Controller
             return redirect()->route('student.results.show', $studentExam)->with('error', 'Exam timed out.');
         }
 
-        $questions = $exam->questions();
+        // Fetch questions safely
+        $query = Question::where('exam_id', $exam->id)->with('options');
+        
         if ($exam->randomize_questions) {
-            $questions->inRandomOrder();
+            $query->inRandomOrder();
         }
-        $questions = $questions->with('options')->get();
+        
+        $questions = $query->get();
 
         if ($exam->randomize_options) {
             foreach ($questions as $q) {
+                // Shuffle options for each question
                 $q->setRelation('options', $q->options->shuffle());
             }
         }

@@ -22,6 +22,43 @@
         </div>
         @endif
 
+        @if($errors->any())
+        <div class="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
+            <ul class="list-disc list-inside">
+                @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+        @endif
+
+        <!-- Bulk Import Section -->
+        <div class="bg-indigo-50 dark:bg-indigo-500/10 border-2 border-dashed border-indigo-200 dark:border-indigo-500/20 rounded-2xl p-6 mb-8">
+            <h2 class="text-lg font-bold text-indigo-800 dark:text-indigo-400 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Bulk Student Import (.xlsx)
+            </h2>
+            <form action="{{ route('admin.students.import') }}" method="POST" enctype="multipart/form-data" class="flex flex-wrap items-end gap-4">
+                @csrf
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Select Excel File</label>
+                    <input type="file" name="file" class="form-input w-full bg-white dark:bg-gray-800" required>
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Enroll In Courses</label>
+                    <select name="courses[]" class="form-multiselect w-full" multiple required>
+                        @foreach(\App\Models\Course::where('is_active', true)->get() as $course)
+                        <option value="{{ $course->id }}">{{ $course->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <button type="submit" class="btn bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg shadow-indigo-500/30">
+                    Start Import
+                </button>
+            </form>
+            <p class="text-xs text-gray-400 mt-2 italic">Excel columns required: <b>name</b>, <b>email</b>, <b>password</b> (optional)</p>
+        </div>
+
         <!-- Table -->
         <div class="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-8">
             <div class="p-6">

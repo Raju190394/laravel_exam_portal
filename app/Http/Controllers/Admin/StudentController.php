@@ -8,8 +8,22 @@ use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
+use App\Imports\StudentsImport;
+use Maatwebsite\Excel\Facades\Excel;
+
 class StudentController extends Controller
 {
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv',
+            'courses' => 'required|array',
+        ]);
+
+        Excel::import(new StudentsImport($request->courses), $request->file('file'));
+
+        return back()->with('success', 'Students imported and enrolled successfully.');
+    }
     public function index()
     {
         $students = User::where('role', 'student')
